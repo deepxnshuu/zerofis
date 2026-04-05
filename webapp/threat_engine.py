@@ -1,12 +1,13 @@
 import re
 import requests
 import time
+import os
 import ssl
 import socket
 from urllib.parse import urlparse
 
 # ---------------- VIRUSTOTAL API ----------------
-API_KEY = "YOUR_API_KEY_HERE"
+API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
 
 def check_virustotal(url):
     headers = {"x-apikey": API_KEY}
