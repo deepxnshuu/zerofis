@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 import os
@@ -7,10 +7,10 @@ from webapp.threat_engine import analyze_url
 
 app = Flask(__name__)
 
-# 🔐 SECRET KEY (important for sessions)
+# 🔐 SECRET KEY
 app.secret_key = os.getenv("SECRET_KEY", "dev_secret")
 
-# 🗄️ DATABASE (Render safe)
+# 🗄️ DATABASE
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -36,13 +36,13 @@ class Scan(db.Model):
     user = db.Column(db.String(100))
 
 # ==========================
-# 🔥 CREATE DB (IMPORTANT)
+# 🔥 CREATE DB
 # ==========================
 with app.app_context():
     db.create_all()
 
 # ==========================
-# 🏠 HOME → REDIRECT
+# 🏠 HOME
 # ==========================
 @app.route('/')
 def home():
@@ -59,12 +59,10 @@ def signup():
         username = request.form['username']
         password = bcrypt.generate_password_hash(request.form['password']).decode('utf-8')
 
-        existing = User.query.filter_by(username=username).first()
-        if existing:
+        if User.query.filter_by(username=username).first():
             return "User already exists"
 
-        new_user = User(username=username, password=password)
-        db.session.add(new_user)
+        db.session.add(User(username=username, password=password))
         db.session.commit()
 
         return redirect('/login')
@@ -76,7 +74,7 @@ def signup():
 # ==========================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    session.clear()  # 🔥 ensures fresh login every time
+    session.clear()
 
     if request.method == 'POST':
         username = request.form['username']
@@ -87,8 +85,8 @@ def login():
         if user and bcrypt.check_password_hash(user.password, password):
             session['user'] = username
             return redirect('/scan')
-        else:
-            return "Invalid credentials"
+
+        return "Invalid credentials"
 
     return render_template('login.html')
 
@@ -101,41 +99,47 @@ def logout():
     return redirect('/login')
 
 # ==========================
-# 🔍 SCAN
+# 🔍 SCAN (FIXED)
 # ==========================
 @app.route('/scan', methods=['GET', 'POST'])
 def scan():
     if 'user' not in session:
         return redirect('/login')
 
-    result = None
-    features = {}
-
     if request.method == 'POST':
         url = request.form['url']
 
         try:
-            result, risk_score, features = analyze_url(url)
+            data = analyze_url(url)
+
+            result = data[0]
+            risk_score = data[1]
+            threats = data[2] if len(data) > 2 else []
+            stats = data[3] if len(data) > 3 else {}
+
         except Exception as e:
             result = "Error"
             risk_score = 0
-            features = {"error": str(e)}
+            threats = [str(e)]
+            stats = {}
 
-        # 💾 Save scan
-        new_scan = Scan(
+        # 💾 SAVE
+        db.session.add(Scan(
             url=url,
             result=result,
             risk_score=risk_score,
             user=session['user']
-        )
-        db.session.add(new_scan)
+        ))
         db.session.commit()
 
-        return render_template('scan.html',
-                               result=result,
-                               risk_score=risk_score,
-                               features=features,
-                               url=url)
+        return render_template(
+            'scan.html',
+            result=result,
+            risk_score=risk_score,
+            threats=threats,
+            stats=stats,
+            url=url
+        )
 
     return render_template('scan.html')
 
@@ -166,11 +170,13 @@ def stats():
 
     avg_risk = round(sum(s.risk_score for s in scans) / total, 2) if total > 0 else 0
 
-    return render_template('stats.html',
-                           total=total,
-                           phishing=phishing,
-                           safe=safe,
-                           avg_risk=avg_risk)
+    return render_template(
+        'stats.html',
+        total=total,
+        phishing=phishing,
+        safe=safe,
+        avg_risk=avg_risk
+    )
 
 # ==========================
 # 👤 PROFILE
@@ -186,12 +192,14 @@ def profile():
     phishing = len([s for s in scans if s.result == "Phishing"])
     safe = len([s for s in scans if s.result == "Safe"])
 
-    return render_template('profile.html',
-                           user=session['user'],
-                           total=total,
-                           phishing=phishing,
-                           safe=safe,
-                           scans=scans[:5])
+    return render_template(
+        'profile.html',
+        user=session['user'],
+        total=total,
+        phishing=phishing,
+        safe=safe,
+        scans=scans[:5]
+    )
 
 # ==========================
 # 🚀 RUN

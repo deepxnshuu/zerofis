@@ -10,10 +10,12 @@ from urllib.parse import urlparse
 API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
 
 def check_virustotal(url):
+    if not API_KEY:
+        return 0  # 🔥 prevent crash if no API key
+
     headers = {"x-apikey": API_KEY}
 
     try:
-        # submit URL
         response = requests.post(
             "https://www.virustotal.com/api/v3/urls",
             headers=headers,
@@ -27,7 +29,6 @@ def check_virustotal(url):
 
         time.sleep(2)
 
-        # fetch result
         result = requests.get(
             f"https://www.virustotal.com/api/v3/analyses/{analysis_id}",
             headers=headers
@@ -80,77 +81,82 @@ def extract_features(url):
 
 # ---------------- MAIN ANALYSIS ----------------
 def analyze_url(url):
-    features = extract_features(url)
+    try:
+        features = extract_features(url)
 
-    risk_score = 0
-    threats = []
+        risk_score = 0
+        threats = []
 
-    # ---------------- LENGTH ----------------
-    if features["url_length"] > 120:
-        risk_score += 15
-        threats.append("Very Long URL")
-    elif features["url_length"] > 80:
-        risk_score += 8
-        threats.append("Long URL")
+        # ---------------- LENGTH ----------------
+        if features["url_length"] > 120:
+            risk_score += 15
+            threats.append("Very Long URL")
+        elif features["url_length"] > 80:
+            risk_score += 8
+            threats.append("Long URL")
 
-    # ---------------- HYPHENS ----------------
-    if features["num_hyphens"] > 6:
-        risk_score += 10
-        threats.append("Too Many Hyphens")
-    elif features["num_hyphens"] > 3:
-        risk_score += 5
-        threats.append("Multiple Hyphens")
+        # ---------------- HYPHENS ----------------
+        if features["num_hyphens"] > 6:
+            risk_score += 10
+            threats.append("Too Many Hyphens")
+        elif features["num_hyphens"] > 3:
+            risk_score += 5
+            threats.append("Multiple Hyphens")
 
-    # ---------------- KEYWORDS ----------------
-    keyword_matches = re.findall(
-        r"login|secure|verify|update|bank|account|free|bonus",
-        url.lower()
-    )
+        # ---------------- KEYWORDS ----------------
+        keyword_matches = re.findall(
+            r"login|secure|verify|update|bank|account|free|bonus",
+            url.lower()
+        )
 
-    if len(keyword_matches) >= 2:
-        risk_score += 15
-        threats.append("Multiple Suspicious Keywords")
+        if len(keyword_matches) >= 2:
+            risk_score += 15
+            threats.append("Multiple Suspicious Keywords")
 
-    # ---------------- SUBDOMAIN ----------------
-    if features["subdomain_depth"] > 3:
-        risk_score += 10
-        threats.append("Too Many Subdomains")
+        # ---------------- SUBDOMAIN ----------------
+        if features["subdomain_depth"] > 3:
+            risk_score += 10
+            threats.append("Too Many Subdomains")
 
-    # ---------------- DOMAIN TYPE ----------------
-    if suspicious_domain(url):
-        risk_score += 25
-        threats.append("Suspicious Domain TLD")
+        # ---------------- DOMAIN TYPE ----------------
+        if suspicious_domain(url):
+            risk_score += 25
+            threats.append("Suspicious Domain TLD")
 
-    # ---------------- SSL CHECK ----------------
-    ssl_valid, ssl_issuer = get_ssl_info(url)
+        # ---------------- SSL CHECK ----------------
+        ssl_valid, ssl_issuer = get_ssl_info(url)
 
-    if not ssl_valid:
-        risk_score += 15
-        threats.append("Invalid SSL Certificate")
+        if not ssl_valid:
+            risk_score += 15
+            threats.append("Invalid SSL Certificate")
 
-    # ---------------- VIRUSTOTAL ----------------
-    vt_score = check_virustotal(url)
+        # ---------------- VIRUSTOTAL ----------------
+        vt_score = check_virustotal(url)
 
-    if vt_score >= 2:
-        risk_score += 30
-        threats.append("Flagged by Security Engines")
+        if vt_score >= 2:
+            risk_score += 30
+            threats.append("Flagged by Security Engines")
 
-    # ---------------- FINAL DECISION ----------------
-    if risk_score >= 60:
-        result = "Phishing"
-    elif risk_score >= 35:
-        result = "Suspicious"
-    else:
-        result = "Safe"
+        # ---------------- FINAL DECISION ----------------
+        if risk_score >= 60:
+            result = "Phishing"
+        elif risk_score >= 35:
+            result = "Suspicious"
+        else:
+            result = "Safe"
 
-    # ---------------- STATS ----------------
-    stats = {
-        "url_length": features["url_length"],
-        "subdomain_depth": features["subdomain_depth"],
-        "special_chars": features["num_special"],
-        "domain_age": "Unknown",
-        "ssl_valid": "Yes" if ssl_valid else "No",
-        "ssl_issuer": ssl_issuer
-    }
+        # ---------------- STATS ----------------
+        stats = {
+            "url_length": features["url_length"],
+            "subdomain_depth": features["subdomain_depth"],
+            "special_chars": features["num_special"],
+            "domain_age": "Unknown",
+            "ssl_valid": "Yes" if ssl_valid else "No",
+            "ssl_issuer": ssl_issuer
+        }
 
-    return result, risk_score, threats, stats
+        # 🔥 IMPORTANT: RETURN SAFE FORMAT
+        return result, risk_score, threats, stats
+
+    except Exception as e:
+        return "Error", 0, [str(e)], {}
