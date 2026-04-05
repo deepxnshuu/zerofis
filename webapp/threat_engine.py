@@ -9,9 +9,10 @@ from urllib.parse import urlparse
 # ---------------- VIRUSTOTAL API ----------------
 API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
 
+
 def check_virustotal(url):
     if not API_KEY:
-        return 0  # 🔥 prevent crash if no API key
+        return 0
 
     headers = {"x-apikey": API_KEY}
 
@@ -69,6 +70,31 @@ def suspicious_domain(url):
     return bool(re.search(r"\.ru|\.tk|\.ml|\.xyz|\.top", url))
 
 
+# ---------------- NEW: FAKE BRAND PATTERN ----------------
+def has_fake_brand_pattern(url):
+    suspicious_keywords = ["login", "signin", "verify", "account", "secure"]
+
+    domain = url.lower()
+    parts = domain.split(".")
+
+    if any(word in domain for word in suspicious_keywords):
+        if len(parts) > 4:
+            return True
+
+    return False
+
+
+# ---------------- NEW: RANDOM SUBDOMAIN DETECTION ----------------
+def has_random_subdomain(url):
+    parts = url.split(".")
+
+    for part in parts:
+        if len(part) > 12 and re.match(r'^[a-z0-9]+$', part):
+            return True
+
+    return False
+
+
 # ---------------- FEATURE EXTRACTION ----------------
 def extract_features(url):
     return {
@@ -105,18 +131,28 @@ def analyze_url(url):
 
         # ---------------- KEYWORDS ----------------
         keyword_matches = re.findall(
-            r"login|secure|verify|update|bank|account|free|bonus",
+            r"login|signin|secure|verify|update|bank|account|free|bonus",
             url.lower()
         )
 
         if len(keyword_matches) >= 2:
-            risk_score += 15
+            risk_score += 20
             threats.append("Multiple Suspicious Keywords")
 
-        # ---------------- SUBDOMAIN ----------------
-        if features["subdomain_depth"] > 3:
-            risk_score += 10
-            threats.append("Too Many Subdomains")
+        # ---------------- SUBDOMAIN (UPGRADED) ----------------
+        if features["subdomain_depth"] > 4:
+            risk_score += 25
+            threats.append("Excessive Subdomains")
+
+        # ---------------- FAKE BRAND ----------------
+        if has_fake_brand_pattern(url):
+            risk_score += 30
+            threats.append("Fake Brand Subdomain Pattern")
+
+        # ---------------- RANDOM STRING ----------------
+        if has_random_subdomain(url):
+            risk_score += 25
+            threats.append("Randomized Subdomain Detected")
 
         # ---------------- DOMAIN TYPE ----------------
         if suspicious_domain(url):
@@ -137,10 +173,10 @@ def analyze_url(url):
             risk_score += 30
             threats.append("Flagged by Security Engines")
 
-        # ---------------- FINAL DECISION ----------------
-        if risk_score >= 60:
+        # ---------------- FINAL DECISION (ADJUSTED) ----------------
+        if risk_score >= 50:
             result = "Phishing"
-        elif risk_score >= 35:
+        elif risk_score >= 30:
             result = "Suspicious"
         else:
             result = "Safe"
@@ -155,7 +191,6 @@ def analyze_url(url):
             "ssl_issuer": ssl_issuer
         }
 
-        # 🔥 IMPORTANT: RETURN SAFE FORMAT
         return result, risk_score, threats, stats
 
     except Exception as e:
