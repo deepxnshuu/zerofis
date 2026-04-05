@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 import os
 
-from threat_engine import analyze_url
+from webapp.threat_engine import analyze_url
 
 app = Flask(__name__)
 
