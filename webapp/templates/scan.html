@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ZeroFis</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<style>
+
+*{transition:0.2s ease;}
+
+body{
+    margin:0;
+    font-family:'Inter',sans-serif;
+    background:#040706;
+    color:#eafff7;
+}
+
+/* NAV */
+nav{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:18px 40px;
+    background:#0b0f0d;
+    border-bottom:1px solid #00ff9c22;
+}
+
+.logo{
+    font-size:22px;
+    font-weight:700;
+    color:#00ff9c;
+}
+
+.nav-links a{
+    margin:0 15px;
+    text-decoration:none;
+    color:#c6fff1;
+}
+
+.nav-links a:hover{
+    color:#00ff9c;
+}
+
+.profile{
+    display:flex;
+    gap:12px;
+    align-items:center;
+}
+
+/* HERO */
+.hero{
+    text-align:center;
+    margin-top:60px;
+}
+
+.hero h1{
+    font-size:42px;
+    color:#00ff9c;
+}
+
+.hero p{
+    color:#aaa;
+}
+
+/* SEARCH */
+.search-box{
+    max-width:700px;
+    margin:30px auto;
+    display:flex;
+    gap:10px;
+}
+
+.search-box input{
+    flex:1;
+    padding:16px;
+    border-radius:12px;
+    border:1px solid #00ff9c22;
+    background:#050807;
+    color:white;
+}
+
+.search-box input:focus{
+    outline:none;
+    border:1px solid #00ff9c;
+    box-shadow:0 0 10px #00ff9c33;
+}
+
+.search-box button{
+    padding:16px;
+    background:#00ff9c;
+    border:none;
+    border-radius:12px;
+    cursor:pointer;
+}
+
+.search-box button:hover{
+    transform:scale(1.05);
+}
+
+/* LOADER */
+.loader{
+    display:none;
+    margin:20px auto;
+    border:4px solid #111;
+    border-top:4px solid #00ff9c;
+    border-radius:50%;
+    width:35px;
+    height:35px;
+    animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+    100%{transform:rotate(360deg);}
+}
+
+/* FEATURES */
+.features{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:20px;
+    max-width:1100px;
+    margin:40px auto;
+}
+
+.feature{
+    background:#050807;
+    padding:20px;
+    border-radius:12px;
+    border:1px solid #00ff9c11;
+    text-align:center;
+}
+
+.feature:hover{
+    transform:translateY(-5px);
+}
+
+/* RESULT */
+.container{
+    max-width:1100px;
+    margin:40px auto;
+    padding:30px;
+    background:#0b0f0d;
+    border-radius:16px;
+    box-shadow:0 0 40px #00ff9c11;
+    animation:fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn{
+    from{opacity:0; transform:translateY(10px);}
+    to{opacity:1; transform:translateY(0);}
+}
+
+/* URL DISPLAY */
+.url-box{
+    margin-bottom:15px;
+    padding:12px 16px;
+    background:#050807;
+    border-radius:10px;
+    border:1px solid #00ff9c22;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+}
+
+.url-text{
+    display:flex;
+    gap:10px;
+    overflow:hidden;
+}
+
+.url-text span{
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+
+.copy-btn{
+    background:#00ff9c;
+    border:none;
+    padding:6px 10px;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+.copy-btn:hover{
+    background:#00cc7a;
+}
+
+/* RESULT */
+.result{
+    text-align:center;
+    font-size:28px;
+}
+
+.safe{color:#00ff9c;}
+.threat{color:#ff4d4d;}
+.suspicious{color:#ffd166;}
+
+/* BAR */
+.risk-bar{
+    height:10px;
+    background:#111;
+    border-radius:10px;
+    margin-top:15px;
+    overflow:hidden;
+}
+
+.risk-fill{
+    height:100%;
+    width:0%;
+    transition:1s ease;
+}
+
+/* THREATS */
+.threat-item{
+    padding:12px;
+    margin:8px 0;
+    border-left:4px solid;
+    border-radius:6px;
+}
+
+.high{background:#2a0000;border-color:#ff4d4d;}
+.medium{background:#2a1a00;border-color:#ffd166;}
+.low{background:#002a1f;border-color:#00ff9c;}
+
+/* CARD */
+.card{
+    background:#050807;
+    padding:18px;
+    border-radius:12px;
+    margin-top:20px;
+}
+
+/* GRID */
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:15px;
+    margin-top:20px;
+}
+
+.stat{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    padding:14px;
+    background:#050807;
+    border-radius:10px;
+}
+
+.stat i{color:#00ff9c;}
+
+</style>
+</head>
+
+<body>
+
+<nav>
+<div class="logo">⚡ ZeroFis</div>
+
+<div class="nav-links">
+<a href="/"><i class="fa fa-search"></i> Scan</a>
+<a href="/history"><i class="fa fa-clock"></i> History</a>
+<a href="/stats"><i class="fa fa-chart-line"></i> Stats</a>
+<a href="/profile"><i class="fa fa-user"></i> Profile</a>
+</div>
+
+<div class="profile">
+<span>{{ session['user'] }}</span>
+<a href="/logout" style="color:#ff4d4d;">Logout</a>
+</div>
+</nav>
+
+<div class="hero">
+<h1>Detect Phishing Instantly ⚡</h1>
+<p>AI-powered URL analysis</p>
+</div>
+
+<form action="/scan" method="POST" class="search-box" onsubmit="showLoader()">
+<input name="url" placeholder="Paste suspicious URL here..." required>
+<button><i class="fa fa-search"></i></button>
+</form>
+
+<div class="loader" id="loader"></div>
+
+<div class="features">
+<div class="feature"><i class="fa fa-brain"></i> AI Detection</div>
+<div class="feature"><i class="fa fa-shield"></i> Real-time Analysis</div>
+<div class="feature"><i class="fa fa-chart-line"></i> Dashboard</div>
+</div>
+
+{% if result %}
+<div class="container">
+
+<div class="url-box">
+<div class="url-text">
+<i class="fa fa-link"></i>
+<span id="urlText">{{ url }}</span>
+</div>
+<button class="copy-btn" onclick="copyURL()">
+<i class="fa fa-copy"></i>
+</button>
+</div>
+
+<div class="result 
+{% if result=='Safe' %}safe
+{% elif result=='Phishing' %}threat
+{% else %}suspicious{% endif %}">
+{{ result }}
+</div>
+
+<div class="risk-bar">
+<div class="risk-fill" id="bar"></div>
+</div>
+
+{% for t in threats %}
+<div class="threat-item 
+{% if 'SSL' in t or 'Flagged' in t %}high
+{% elif 'Keyword' in t %}medium
+{% else %}low{% endif %}">
+<i class="fa fa-exclamation-triangle"></i> {{t}}
+</div>
+{% endfor %}
+
+<div class="card">
+<h3><i class="fa fa-robot"></i> AI Explanation</h3>
+<p style="color:#aaa;">
+{% if result == "Safe" %}
+No major phishing indicators detected. This URL appears safe.
+{% elif result == "Suspicious" %}
+This URL shows moderate risk signals. Proceed with caution.
+{% else %}
+This URL contains strong phishing indicators and should be avoided.
+{% endif %}
+</p>
+</div>
+
+<div class="grid">
+<div class="stat"><i class="fa fa-link"></i> {{stats.url_length}}</div>
+<div class="stat"><i class="fa fa-sitemap"></i> {{stats.subdomain_depth}}</div>
+<div class="stat"><i class="fa fa-hashtag"></i> {{stats.special_chars}}</div>
+<div class="stat"><i class="fa fa-clock"></i> {{stats.domain_age}}</div>
+<div class="stat"><i class="fa fa-lock"></i> {{stats.ssl_valid}}</div>
+<div class="stat"><i class="fa fa-certificate"></i> {{stats.ssl_issuer}}</div>
+</div>
+
+</div>
+{% endif %}
+
+<script>
+function showLoader(){
+    document.getElementById("loader").style.display="block";
+}
+
+function copyURL(){
+    let text=document.getElementById("urlText").innerText;
+    navigator.clipboard.writeText(text);
+
+    let btn=document.querySelector(".copy-btn");
+    btn.innerHTML="✓";
+    setTimeout(()=>btn.innerHTML='<i class="fa fa-copy"></i>',1000);
+}
+
+{% if risk_score %}
+setTimeout(()=>{
+let bar=document.getElementById("bar");
+bar.style.width="{{risk_score}}%";
+
+if({{risk_score}}>60){
+    bar.style.background="#ff4d4d";
+}
+else if({{risk_score}}>35){
+    bar.style.background="#ffd166";
+}
+else{
+    bar.style.background="#00ff9c";
+}
+},200);
+{% endif %}
+</script>
+
+</body>
+</html>

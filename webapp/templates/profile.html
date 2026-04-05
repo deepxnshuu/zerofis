@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ZeroFis - Profile</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<style>
+
+body{
+    margin:0;
+    font-family:'Inter',sans-serif;
+    background:#040706;
+    color:#eafff7;
+}
+
+/* NAVBAR */
+nav{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:18px 40px;
+    background:#0b0f0d;
+    border-bottom:1px solid #00ff9c22;
+}
+
+.logo{
+    font-size:22px;
+    font-weight:700;
+    color:#00ff9c;
+}
+
+.nav-links a{
+    margin:0 15px;
+    text-decoration:none;
+    color:#c6fff1;
+}
+
+.nav-links a:hover{
+    color:#00ff9c;
+}
+
+.profile-nav{
+    display:flex;
+    gap:12px;
+    align-items:center;
+}
+
+/* CONTAINER */
+.container{
+    max-width:1100px;
+    margin:40px auto;
+    padding:30px;
+    background:#0b0f0d;
+    border-radius:16px;
+    box-shadow:0 0 40px #00ff9c11;
+}
+
+/* PROFILE HEADER */
+.profile-header{
+    display:flex;
+    align-items:center;
+    gap:20px;
+    padding:20px;
+    background:#050807;
+    border-radius:12px;
+    border:1px solid #00ff9c11;
+}
+
+.profile-icon{
+    font-size:50px;
+    color:#00ff9c;
+}
+
+/* GRID */
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:20px;
+    margin-top:20px;
+}
+
+/* CARDS */
+.card{
+    background:#050807;
+    padding:20px;
+    border-radius:12px;
+    border:1px solid #00ff9c11;
+    text-align:center;
+    transition:0.3s;
+}
+
+.card:hover{
+    transform:translateY(-5px);
+    box-shadow:0 0 20px #00ff9c33;
+}
+
+.card i{
+    font-size:20px;
+    margin-bottom:10px;
+}
+
+.value{
+    font-size:26px;
+    font-weight:600;
+}
+
+.label{
+    color:#aaa;
+    font-size:14px;
+}
+
+/* TABLE */
+table{
+    width:100%;
+    margin-top:20px;
+    border-collapse:collapse;
+}
+
+th{
+    text-align:left;
+    padding:12px;
+    color:#00ff9c;
+    border-bottom:1px solid #00ff9c33;
+}
+
+td{
+    padding:12px;
+    border-bottom:1px solid #00ff9c22;
+}
+
+tr:hover{
+    background:#00ff9c08;
+}
+
+.url{
+    max-width:500px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+.url:hover{
+    white-space:normal;
+    word-break:break-all;
+}
+
+/* COLORS */
+.safe{color:#00ff9c;}
+.threat{color:#ff4d4d;}
+
+.risk{
+    background:#00ff9c22;
+    padding:4px 10px;
+    border-radius:6px;
+}
+
+</style>
+</head>
+
+<body>
+
+<nav>
+<div class="logo">⚡ ZeroFis</div>
+
+<div class="nav-links">
+<a href="/"><i class="fa fa-search"></i> Scan</a>
+<a href="/history"><i class="fa fa-clock"></i> History</a>
+<a href="/stats"><i class="fa fa-chart-line"></i> Stats</a>
+<a href="/profile"><i class="fa fa-user"></i> Profile</a>
+</div>
+
+<div class="profile-nav">
+<span>{{ user }}</span>
+<a href="/logout" style="color:#ff4d4d;">Logout</a>
+</div>
+</nav>
+
+<div class="container">
+
+<!-- PROFILE HEADER -->
+<div class="profile-header">
+<div class="profile-icon"><i class="fa fa-user-circle"></i></div>
+<div>
+<h2>{{ user }}</h2>
+<p style="color:#aaa;">Cybersecurity Dashboard User</p>
+</div>
+</div>
+
+<!-- STATS -->
+<div class="grid">
+
+<div class="card">
+<i class="fa fa-database"></i>
+<div class="value">{{ total }}</div>
+<div class="label">Total Scans</div>
+</div>
+
+<div class="card">
+<i class="fa fa-exclamation-triangle" style="color:#ff4d4d;"></i>
+<div class="value" style="color:#ff4d4d;">{{ phishing }}</div>
+<div class="label">Phishing Detected</div>
+</div>
+
+<div class="card">
+<i class="fa fa-shield"></i>
+<div class="value">{{ safe }}</div>
+<div class="label">Safe URLs</div>
+</div>
+
+</div>
+
+<!-- RECENT ACTIVITY -->
+<h3 style="margin-top:30px; color:#00ff9c;">Recent Activity</h3>
+
+<table>
+<tr>
+<th>URL</th>
+<th>Result</th>
+<th>Risk</th>
+</tr>
+
+{% for r in recent %}
+<tr>
+
+<td class="url" title="{{r.url}}">
+<i class="fa fa-link"></i> {{ r.url }}
+</td>
+
+<td class="{{ 'safe' if r.result=='Safe' else 'threat' }}">
+{{ r.result }}
+</td>
+
+<td>
+<span class="risk">{{ r.risk_score }}/100</span>
+</td>
+
+</tr>
+{% endfor %}
+
+</table>
+
+</div>
+
+</body>
+</html>

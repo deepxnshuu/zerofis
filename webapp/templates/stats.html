@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ZeroFis - Analytics</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<style>
+
+body{
+    margin:0;
+    font-family:'Inter',sans-serif;
+    background:#040706;
+    color:#eafff7;
+}
+
+/* NAVBAR */
+nav{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:18px 40px;
+    background:#0b0f0d;
+    border-bottom:1px solid #00ff9c22;
+}
+
+.logo{
+    font-size:22px;
+    font-weight:700;
+    color:#00ff9c;
+}
+
+.nav-links a{
+    margin:0 15px;
+    text-decoration:none;
+    color:#c6fff1;
+}
+
+.nav-links a:hover{
+    color:#00ff9c;
+}
+
+.profile{
+    display:flex;
+    gap:12px;
+    align-items:center;
+}
+
+/* CONTAINER */
+.container{
+    max-width:1100px;
+    margin:40px auto;
+    padding:30px;
+    background:#0b0f0d;
+    border-radius:16px;
+    box-shadow:0 0 40px #00ff9c11;
+}
+
+/* TITLE */
+h2{
+    text-align:center;
+    color:#00ff9c;
+    margin-bottom:30px;
+}
+
+/* GRID */
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(220px,1fr));
+    gap:20px;
+}
+
+/* CARD */
+.card{
+    background:#050807;
+    padding:20px;
+    border-radius:12px;
+    border:1px solid #00ff9c11;
+    transition:0.3s;
+}
+
+.card:hover{
+    transform:translateY(-5px);
+    box-shadow:0 0 20px #00ff9c33;
+}
+
+/* ICON */
+.card i{
+    font-size:20px;
+    margin-bottom:10px;
+    color:#00ff9c;
+}
+
+/* VALUE */
+.value{
+    font-size:26px;
+    font-weight:600;
+}
+
+/* LABEL */
+.label{
+    color:#aaa;
+    font-size:14px;
+}
+
+/* CHART */
+.chart-box{
+    margin-top:40px;
+    text-align:center;
+}
+
+canvas{
+    background:#050807;
+    padding:20px;
+    border-radius:12px;
+    box-shadow:0 0 20px #00ff9c22;
+}
+
+</style>
+</head>
+
+<body>
+
+<nav>
+<div class="logo">⚡ ZeroFis</div>
+
+<div class="nav-links">
+<a href="/"><i class="fa fa-search"></i> Scan</a>
+<a href="/history"><i class="fa fa-clock"></i> History</a>
+<a href="/stats"><i class="fa fa-chart-line"></i> Stats</a>
+<a href="/profile"><i class="fa fa-user"></i> Profile</a>
+</div>
+
+<div class="profile">
+<span>{{ session['user'] }}</span>
+<a href="/logout" style="color:#ff4d4d;">Logout</a>
+</div>
+</nav>
+
+<div class="container">
+
+<h2>Analytics Dashboard</h2>
+
+<div class="grid">
+
+<div class="card">
+<i class="fa fa-database"></i>
+<div class="value">{{ total }}</div>
+<div class="label">Total Scans</div>
+</div>
+
+<div class="card">
+<i class="fa fa-exclamation-triangle" style="color:#ff4d4d;"></i>
+<div class="value" style="color:#ff4d4d;">{{ phishing }}</div>
+<div class="label">Phishing Detected</div>
+</div>
+
+<div class="card">
+<i class="fa fa-shield"></i>
+<div class="value">{{ safe }}</div>
+<div class="label">Safe URLs</div>
+</div>
+
+<div class="card">
+<i class="fa fa-chart-line"></i>
+<div class="value">{{ avg_risk }}</div>
+<div class="label">Average Risk</div>
+</div>
+
+</div>
+
+<!-- PIE / DONUT CHART -->
+<div class="chart-box">
+<canvas id="chart" width="300" height="300"></canvas>
+</div>
+
+</div>
+
+<script>
+let phishing = {{ phishing }};
+let safe = {{ safe }};
+let total = phishing + safe;
+
+let ctx = document.getElementById("chart").getContext("2d");
+
+let angle = (phishing / total) * Math.PI * 2;
+
+// phishing slice
+ctx.beginPath();
+ctx.moveTo(150,150);
+ctx.arc(150,150,100,0,angle);
+ctx.fillStyle="#ff4d4d";
+ctx.fill();
+
+// safe slice
+ctx.beginPath();
+ctx.moveTo(150,150);
+ctx.arc(150,150,100,angle,Math.PI*2);
+ctx.fillStyle="#00ff9c";
+ctx.fill();
+
+// donut center
+ctx.beginPath();
+ctx.arc(150,150,50,0,Math.PI*2);
+ctx.fillStyle="#040706";
+ctx.fill();
+</script>
+
+</body>
+</html>
