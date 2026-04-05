@@ -1,200 +1,200 @@
-from flask import Flask, request, render_template, redirect, session
+from flask import Flask, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
-from webapp.threat_engine import analyze_url
+import os
+
+from threat_engine import analyze_url
 
 app = Flask(__name__)
-app.secret_key = "supersecretkey"
 
-# 🔥 SESSION FIX
-app.config['SESSION_PERMANENT'] = False
+# 🔐 SECRET KEY (important for sessions)
+app.secret_key = os.getenv("SECRET_KEY", "dev_secret")
 
-# ---------------- CONFIG ----------------
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///scan_history.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# 🗄️ DATABASE (Render safe)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
-# ---------------- MODELS ----------------
-
+# ==========================
+# 🧑 USER MODEL
+# ==========================
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
 
+# ==========================
+# 📊 SCAN MODEL
+# ==========================
 class Scan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    url = db.Column(db.String(500))
+    url = db.Column(db.Text)
     result = db.Column(db.String(50))
     risk_score = db.Column(db.Integer)
     user = db.Column(db.String(100))
 
-# ❌ REMOVE THIS (no longer needed)
-# import pickle
-# model = pickle.load(open("model/phishing_model.pkl", "rb"))
+# ==========================
+# 🔥 CREATE DB (IMPORTANT)
+# ==========================
+with app.app_context():
+    db.create_all()
 
-# ---------------- AUTH ----------------
+# ==========================
+# 🏠 HOME → REDIRECT
+# ==========================
+@app.route('/')
+def home():
+    if 'user' in session:
+        return redirect('/scan')
+    return redirect('/login')
 
-@app.route("/signup", methods=["GET", "POST"])
+# ==========================
+# 🔐 SIGNUP
+# ==========================
+@app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
+    if request.method == 'POST':
+        username = request.form['username']
+        password = bcrypt.generate_password_hash(request.form['password']).decode('utf-8')
 
         existing = User.query.filter_by(username=username).first()
         if existing:
             return "User already exists"
 
-        hashed = bcrypt.generate_password_hash(password).decode("utf-8")
-
-        user = User(username=username, password=hashed)
-        db.session.add(user)
+        new_user = User(username=username, password=password)
+        db.session.add(new_user)
         db.session.commit()
 
-        return redirect("/login")
+        return redirect('/login')
 
-    return render_template("signup.html")
+    return render_template('signup.html')
 
-
-@app.route("/login", methods=["GET", "POST"])
+# ==========================
+# 🔐 LOGIN
+# ==========================
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
+    session.clear()  # 🔥 ensures fresh login every time
+
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
 
         user = User.query.filter_by(username=username).first()
 
         if user and bcrypt.check_password_hash(user.password, password):
-            session.clear()
-            session["user"] = username
-            session.permanent = False
-            return redirect("/")
+            session['user'] = username
+            return redirect('/scan')
         else:
             return "Invalid credentials"
 
-    return render_template("login.html")
+    return render_template('login.html')
 
-
-@app.route("/logout")
+# ==========================
+# 🚪 LOGOUT
+# ==========================
+@app.route('/logout')
 def logout():
     session.clear()
-    return redirect("/login")
+    return redirect('/login')
 
-
-# ---------------- HOME / SCAN ----------------
-
-@app.route("/")
-def home():
-    if "user" not in session:
-        return redirect("/login")
-
-    scans = Scan.query.filter_by(user=session["user"]).order_by(Scan.id.desc()).limit(10)
-
-    return render_template("scan.html", scans=scans)
-
-
-@app.route("/scan", methods=["POST"])
+# ==========================
+# 🔍 SCAN
+# ==========================
+@app.route('/scan', methods=['GET', 'POST'])
 def scan():
-    if "user" not in session:
-        return redirect("/login")
+    if 'user' not in session:
+        return redirect('/login')
 
-    url = request.form["url"]
+    result = None
+    features = {}
 
-    # ✅ FIXED (ONLY ONE ARGUMENT)
-    result, risk_score, threats, stats = analyze_url(url)
+    if request.method == 'POST':
+        url = request.form['url']
 
-    # Save to DB
-    new_scan = Scan(
-        url=url,
-        result=result,
-        risk_score=risk_score,
-        user=session["user"]
-    )
+        try:
+            result, risk_score, features = analyze_url(url)
+        except Exception as e:
+            result = "Error"
+            risk_score = 0
+            features = {"error": str(e)}
 
-    db.session.add(new_scan)
-    db.session.commit()
+        # 💾 Save scan
+        new_scan = Scan(
+            url=url,
+            result=result,
+            risk_score=risk_score,
+            user=session['user']
+        )
+        db.session.add(new_scan)
+        db.session.commit()
 
-    scans = Scan.query.filter_by(user=session["user"]).order_by(Scan.id.desc()).limit(10)
+        return render_template('scan.html',
+                               result=result,
+                               risk_score=risk_score,
+                               features=features,
+                               url=url)
 
-    return render_template(
-        "scan.html",
-        url=url,
-        result=result,
-        risk_score=risk_score,
-        threats=threats,
-        stats=stats,
-        scans=scans
-    )
+    return render_template('scan.html')
 
-
-# ---------------- HISTORY ----------------
-
-@app.route("/history")
+# ==========================
+# 📜 HISTORY
+# ==========================
+@app.route('/history')
 def history():
-    if "user" not in session:
-        return redirect("/login")
+    if 'user' not in session:
+        return redirect('/login')
 
-    scans = Scan.query.filter_by(user=session["user"]).order_by(Scan.id.desc()).all()
+    scans = Scan.query.filter_by(user=session['user']).all()
+    return render_template('history.html', scans=scans)
 
-    return render_template("history.html", scans=scans)
-
-
-# ---------------- STATS ----------------
-
-@app.route("/stats")
+# ==========================
+# 📊 STATS
+# ==========================
+@app.route('/stats')
 def stats():
-    if "user" not in session:
-        return redirect("/login")
+    if 'user' not in session:
+        return redirect('/login')
 
-    user = session["user"]
+    scans = Scan.query.filter_by(user=session['user']).all()
 
-    total = Scan.query.filter_by(user=user).count()
-    phishing = Scan.query.filter_by(user=user, result="Phishing").count()
-    safe = Scan.query.filter_by(user=user, result="Safe").count()
+    total = len(scans)
+    phishing = len([s for s in scans if s.result == "Phishing"])
+    safe = len([s for s in scans if s.result == "Safe"])
 
-    avg_risk = db.session.query(db.func.avg(Scan.risk_score)).filter_by(user=user).scalar()
-    avg_risk = round(avg_risk or 0, 2)
+    avg_risk = round(sum(s.risk_score for s in scans) / total, 2) if total > 0 else 0
 
-    return render_template(
-        "stats.html",
-        total=total,
-        phishing=phishing,
-        safe=safe,
-        avg_risk=avg_risk
-    )
+    return render_template('stats.html',
+                           total=total,
+                           phishing=phishing,
+                           safe=safe,
+                           avg_risk=avg_risk)
 
-
-# ---------------- PROFILE ----------------
-
-@app.route("/profile")
+# ==========================
+# 👤 PROFILE
+# ==========================
+@app.route('/profile')
 def profile():
-    if "user" not in session:
-        return redirect("/login")
+    if 'user' not in session:
+        return redirect('/login')
 
-    user = session["user"]
+    scans = Scan.query.filter_by(user=session['user']).all()
 
-    total = Scan.query.filter_by(user=user).count()
-    phishing = Scan.query.filter_by(user=user, result="Phishing").count()
-    safe = Scan.query.filter_by(user=user, result="Safe").count()
+    total = len(scans)
+    phishing = len([s for s in scans if s.result == "Phishing"])
+    safe = len([s for s in scans if s.result == "Safe"])
 
-    recent = Scan.query.filter_by(user=user).order_by(Scan.id.desc()).limit(5)
+    return render_template('profile.html',
+                           user=session['user'],
+                           total=total,
+                           phishing=phishing,
+                           safe=safe,
+                           scans=scans[:5])
 
-    return render_template(
-        "profile.html",
-        user=user,
-        total=total,
-        phishing=phishing,
-        safe=safe,
-        recent=recent
-    )
-
-
-# ---------------- RUN ----------------
-
-if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-        
+# ==========================
+# 🚀 RUN
+# ==========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
