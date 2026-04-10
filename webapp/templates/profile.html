@@ -135,7 +135,7 @@ tr:hover{
 }
 
 .url{
-    max-width:500px;
+    max-width:400px;
     overflow:hidden;
     text-overflow:ellipsis;
     white-space:nowrap;
@@ -156,6 +156,13 @@ tr:hover{
     border-radius:6px;
 }
 
+/* EMPTY STATE */
+.empty{
+    text-align:center;
+    padding:20px;
+    color:#888;
+}
+
 </style>
 </head>
 
@@ -165,7 +172,7 @@ tr:hover{
 <div class="logo">⚡ ZeroFis</div>
 
 <div class="nav-links">
-<a href="/"><i class="fa fa-search"></i> Scan</a>
+<a href="/scan"><i class="fa fa-search"></i> Scan</a>
 <a href="/history"><i class="fa fa-clock"></i> History</a>
 <a href="/stats"><i class="fa fa-chart-line"></i> Stats</a>
 <a href="/profile"><i class="fa fa-user"></i> Profile</a>
@@ -219,12 +226,21 @@ tr:hover{
 <th>URL</th>
 <th>Result</th>
 <th>Risk</th>
+<th>Time</th>
 </tr>
 
-{% for r in recent %}
+{% if scans|length == 0 %}
+<tr>
+<td colspan="4" class="empty">
+No recent activity yet
+</td>
+</tr>
+{% endif %}
+
+{% for r in scans %}
 <tr>
 
-<td class="url" title="{{r.url}}">
+<td class="url" title="{{ r.url }}">
 <i class="fa fa-link"></i> {{ r.url }}
 </td>
 
@@ -234,6 +250,10 @@ tr:hover{
 
 <td>
 <span class="risk">{{ r.risk_score }}/100</span>
+</td>
+
+<td>
+{{ r.timestamp.strftime('%d %b %H:%M') if r.timestamp else '-' }}
 </td>
 
 </tr>

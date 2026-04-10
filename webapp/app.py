@@ -10,8 +10,15 @@ app = Flask(__name__)
 # 🔐 SECRET KEY
 app.secret_key = os.getenv("SECRET_KEY", "dev_secret")
 
-# 🗄️ DATABASE
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
+# ==========================
+# 🗄️ DATABASE (PRODUCTION FIX)
+# ==========================
+db_url = os.getenv("DATABASE_URL")
+
+if db_url:
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url or 'sqlite:///data.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -34,6 +41,7 @@ class Scan(db.Model):
     result = db.Column(db.String(50))
     risk_score = db.Column(db.Integer)
     user = db.Column(db.String(100))
+    timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())  # 🔥 added
 
 # ==========================
 # 🔥 CREATE DB
@@ -99,7 +107,7 @@ def logout():
     return redirect('/login')
 
 # ==========================
-# 🔍 SCAN (FIXED)
+# 🔍 SCAN (SAFE + STABLE)
 # ==========================
 @app.route('/scan', methods=['GET', 'POST'])
 def scan():
@@ -110,20 +118,13 @@ def scan():
         url = request.form['url']
 
         try:
-            data = analyze_url(url)
-
-            result = data[0]
-            risk_score = data[1]
-            threats = data[2] if len(data) > 2 else []
-            stats = data[3] if len(data) > 3 else {}
-
+            result, risk_score, threats, stats = analyze_url(url)
         except Exception as e:
             result = "Error"
             risk_score = 0
             threats = [str(e)]
             stats = {}
 
-        # 💾 SAVE
         db.session.add(Scan(
             url=url,
             result=result,
@@ -151,7 +152,10 @@ def history():
     if 'user' not in session:
         return redirect('/login')
 
-    scans = Scan.query.filter_by(user=session['user']).all()
+    scans = Scan.query.filter_by(user=session['user']) \
+                      .order_by(Scan.timestamp.desc()) \
+                      .all()
+
     return render_template('history.html', scans=scans)
 
 # ==========================
@@ -167,6 +171,7 @@ def stats():
     total = len(scans)
     phishing = len([s for s in scans if s.result == "Phishing"])
     safe = len([s for s in scans if s.result == "Safe"])
+    suspicious = len([s for s in scans if s.result == "Suspicious"])  # 🔥 NEW
 
     avg_risk = round(sum(s.risk_score for s in scans) / total, 2) if total > 0 else 0
 
@@ -175,6 +180,7 @@ def stats():
         total=total,
         phishing=phishing,
         safe=safe,
+        suspicious=suspicious,  # 🔥 NEW
         avg_risk=avg_risk
     )
 
@@ -186,11 +192,15 @@ def profile():
     if 'user' not in session:
         return redirect('/login')
 
-    scans = Scan.query.filter_by(user=session['user']).all()
+    scans = Scan.query.filter_by(user=session['user']) \
+                  .order_by(Scan.timestamp.desc()) \
+                  .limit(5) \
+                  .all()
 
     total = len(scans)
     phishing = len([s for s in scans if s.result == "Phishing"])
     safe = len([s for s in scans if s.result == "Safe"])
+    suspicious = len([s for s in scans if s.result == "Suspicious"])  # 🔥 NEW
 
     return render_template(
         'profile.html',
@@ -198,6 +208,7 @@ def profile():
         total=total,
         phishing=phishing,
         safe=safe,
+        suspicious=suspicious,  # 🔥 NEW
         scans=scans[:5]
     )
 

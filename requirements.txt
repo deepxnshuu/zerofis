@@ -1,5 +1,7 @@
-Flask
+flask
 flask_sqlalchemy
 flask_bcrypt
 requests
 gunicorn
+psycopg2-binary
+joblib

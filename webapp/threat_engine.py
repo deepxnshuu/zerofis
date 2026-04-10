@@ -4,29 +4,96 @@ import time
 import os
 import ssl
 import socket
+import math
+import joblib
 from urllib.parse import urlparse
 
-# ---------------- VIRUSTOTAL API ----------------
 API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
 
+# ---------------- ML MODEL ----------------
+try:
+    model = joblib.load("model/phishing_model.pkl")
+except:
+    model = None
 
+# ---------------- NORMALIZE URL ----------------
+def normalize_url(url):
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = "http://" + url
+    return url
+
+# ---------------- ENTROPY ----------------
+def calculate_entropy(s):
+    prob = [float(s.count(c)) / len(s) for c in dict.fromkeys(list(s))]
+    return -sum([p * math.log2(p) for p in prob])
+
+# ---------------- CLEAN DOMAIN ----------------
+def clean_domain(url):
+    parsed = urlparse(url)
+    domain = parsed.netloc.lower()
+
+    if not domain:
+        domain = parsed.path
+
+    domain = domain.replace("www.", "").split(":")[0]
+    return domain
+
+# ---------------- BRAND IMPERSONATION ----------------
+def is_fake_brand(domain):
+    brands = ["google", "paypal", "facebook", "amazon", "microsoft", "apple"]
+
+    for b in brands:
+        if b in domain:
+            # 🔥 Legit if ends with brand domain
+            if domain.endswith(f"{b}.com"):
+                return False
+
+            # 🔥 Also allow subdomains like learn.microsoft.com
+            if domain.count(".") <= 3 and domain.split(".")[-2] == b:
+                return False
+
+            return True
+
+    return False
+
+# ---------------- SSL ----------------
+def get_ssl_info(url):
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+
+        if not hostname:
+            return True, "Unknown"
+
+        context = ssl.create_default_context()
+        with socket.create_connection((hostname, 443), timeout=3) as sock:
+            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                cert = ssock.getpeercert()
+                issuer = dict(x[0] for x in cert['issuer'])
+
+                return True, issuer.get('organizationName', 'Trusted')
+
+    except:
+        return True, "Unknown"
+
+# ---------------- VIRUSTOTAL ----------------
 def check_virustotal(url):
     if not API_KEY:
         return 0
 
-    headers = {"x-apikey": API_KEY}
-
     try:
-        response = requests.post(
+        headers = {"x-apikey": API_KEY}
+
+        r = requests.post(
             "https://www.virustotal.com/api/v3/urls",
             headers=headers,
             data={"url": url}
         )
 
-        if response.status_code != 200:
+        if r.status_code != 200:
             return 0
 
-        analysis_id = response.json()["data"]["id"]
+        analysis_id = r.json()["data"]["id"]
 
         time.sleep(2)
 
@@ -37,161 +104,127 @@ def check_virustotal(url):
 
         stats = result.json()["data"]["attributes"]["stats"]
 
-        malicious = stats.get("malicious", 0)
-        suspicious = stats.get("suspicious", 0)
-
-        return malicious + suspicious
+        return stats.get("malicious", 0) + stats.get("suspicious", 0)
 
     except:
         return 0
 
+# ---------------- HELPERS ----------------
+def suspicious_tld(domain):
+    return bool(re.search(r"\.(ru|tk|ml|xyz|top|gq)$", domain))
 
-# ---------------- SSL CHECK ----------------
-def get_ssl_info(url):
-    try:
-        hostname = urlparse(url).hostname
+def keyword_score(url):
+    keywords = ["login", "verify", "secure", "account", "update", "bank", "password"]
+    return sum(1 for k in keywords if k in url.lower())
 
-        context = ssl.create_default_context()
-        with socket.create_connection((hostname, 443), timeout=3) as sock:
-            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                cert = ssock.getpeercert()
-
-                issuer = dict(x[0] for x in cert['issuer'])
-                issuer_name = issuer.get('organizationName', 'Unknown')
-
-                return True, issuer_name
-
-    except:
-        return False, "Unknown"
-
-
-# ---------------- DOMAIN CHECK ----------------
-def suspicious_domain(url):
-    return bool(re.search(r"\.ru|\.tk|\.ml|\.xyz|\.top", url))
-
-
-# ---------------- NEW: FAKE BRAND PATTERN ----------------
-def has_fake_brand_pattern(url):
-    suspicious_keywords = ["login", "signin", "verify", "account", "secure"]
-
-    domain = url.lower()
-    parts = domain.split(".")
-
-    if any(word in domain for word in suspicious_keywords):
-        if len(parts) > 4:
-            return True
-
-    return False
-
-
-# ---------------- NEW: RANDOM SUBDOMAIN DETECTION ----------------
-def has_random_subdomain(url):
-    parts = url.split(".")
-
-    for part in parts:
-        if len(part) > 12 and re.match(r'^[a-z0-9]+$', part):
-            return True
-
-    return False
-
-
-# ---------------- FEATURE EXTRACTION ----------------
-def extract_features(url):
-    return {
-        "url_length": len(url),
-        "num_hyphens": url.count("-"),
-        "num_special": len(re.findall(r'[^a-zA-Z0-9]', url)),
-        "subdomain_depth": url.count("."),
-    }
-
-
-# ---------------- MAIN ANALYSIS ----------------
+# ---------------- MAIN ----------------
 def analyze_url(url):
     try:
-        features = extract_features(url)
+        url = normalize_url(url)
+        domain = clean_domain(url)
 
-        risk_score = 0
+        risk = 0
         threats = []
 
+        length = len(url)
+        subdomains = domain.count(".")
+        hyphens = url.count("-")
+
         # ---------------- LENGTH ----------------
-        if features["url_length"] > 120:
-            risk_score += 15
-            threats.append("Very Long URL")
-        elif features["url_length"] > 80:
-            risk_score += 8
+        if length > 100:
+            risk += 10
             threats.append("Long URL")
 
+        # ---------------- SUBDOMAIN ----------------
+        if subdomains > 4:
+            risk += 25
+            threats.append("Too Many Subdomains")
+
         # ---------------- HYPHENS ----------------
-        if features["num_hyphens"] > 6:
-            risk_score += 10
+        if hyphens > 4:
+            risk += 10
             threats.append("Too Many Hyphens")
-        elif features["num_hyphens"] > 3:
-            risk_score += 5
-            threats.append("Multiple Hyphens")
+
+        # ---------------- ENTROPY ----------------
+        entropy = calculate_entropy(domain)
+        if entropy > 3.8:
+            risk += 25
+            threats.append("Randomized Domain")
 
         # ---------------- KEYWORDS ----------------
-        keyword_matches = re.findall(
-            r"login|signin|secure|verify|update|bank|account|free|bonus",
-            url.lower()
-        )
+        kw = keyword_score(url)
+        if kw >= 1:
+            risk += 20
+            threats.append("Suspicious Keyword in URL")
 
-        if len(keyword_matches) >= 2:
-            risk_score += 20
-            threats.append("Multiple Suspicious Keywords")
+        # ---------------- COMBO RULE ----------------
+        if entropy > 3.5 and "login" in url.lower():
+            risk += 25
+            threats.append("Suspicious Login on Random Domain")
 
-        # ---------------- SUBDOMAIN (UPGRADED) ----------------
-        if features["subdomain_depth"] > 4:
-            risk_score += 25
-            threats.append("Excessive Subdomains")
+        # ---------------- DOMAIN LENGTH BOOST ----------------
+        if len(domain) > 12 and entropy > 3.5:
+            risk += 10
 
-        # ---------------- FAKE BRAND ----------------
-        if has_fake_brand_pattern(url):
-            risk_score += 30
-            threats.append("Fake Brand Subdomain Pattern")
+        # ---------------- BRAND IMPERSONATION ----------------
+        if is_fake_brand(domain):
+            risk += 20
+            threats.append("Brand Impersonation Detected")
 
-        # ---------------- RANDOM STRING ----------------
-        if has_random_subdomain(url):
-            risk_score += 25
-            threats.append("Randomized Subdomain Detected")
-
-        # ---------------- DOMAIN TYPE ----------------
-        if suspicious_domain(url):
-            risk_score += 25
+        # ---------------- TLD ----------------
+        if suspicious_tld(domain):
+            risk += 20
             threats.append("Suspicious Domain TLD")
 
-        # ---------------- SSL CHECK ----------------
-        ssl_valid, ssl_issuer = get_ssl_info(url)
+        # ---------------- SSL ----------------
+        ssl_valid, issuer = get_ssl_info(url)
 
-        if not ssl_valid:
-            risk_score += 15
-            threats.append("Invalid SSL Certificate")
-
-        # ---------------- VIRUSTOTAL ----------------
+        # ---------------- API ----------------
         vt_score = check_virustotal(url)
-
         if vt_score >= 2:
-            risk_score += 30
+            risk += 35
             threats.append("Flagged by Security Engines")
 
-        # ---------------- FINAL DECISION (ADJUSTED) ----------------
-        if risk_score >= 50:
+        # ---------------- ML ----------------
+        if model:
+            try:
+                features_ml = [[
+                    len(url),
+                    url.count("-"),
+                    len(re.findall(r'[^a-zA-Z0-9]', url)),
+                    url.count(".")
+                ]]
+
+                if model.predict(features_ml)[0] == 1:
+                    risk += 20
+                    threats.append("ML Model Detection")
+
+            except:
+                pass
+
+        # ---------------- HARD RULE ----------------
+        if "login" in url.lower() and subdomains > 3:
+            risk = max(risk, 70)
+
+        # ---------------- FINAL ----------------
+        if risk >= 55:
             result = "Phishing"
-        elif risk_score >= 30:
+        elif risk >= 30:
             result = "Suspicious"
         else:
             result = "Safe"
 
-        # ---------------- STATS ----------------
         stats = {
-            "url_length": features["url_length"],
-            "subdomain_depth": features["subdomain_depth"],
-            "special_chars": features["num_special"],
+            "url_length": length,
+            "subdomain_depth": subdomains,
+            "special_chars": len(re.findall(r'[^a-zA-Z0-9]', url)),
             "domain_age": "Unknown",
             "ssl_valid": "Yes" if ssl_valid else "No",
-            "ssl_issuer": ssl_issuer
+            "ssl_issuer": issuer,
+            "confidence": min(risk, 100)
         }
 
-        return result, risk_score, threats, stats
+        return result, min(risk, 100), threats, stats
 
     except Exception as e:
         return "Error", 0, [str(e)], {}
