@@ -15,10 +15,11 @@ app.secret_key = os.getenv("SECRET_KEY", "dev_secret")
 # ==========================
 db_url = os.getenv("DATABASE_URL")
 
+# 🔥 Fix for Render postgres
 if db_url:
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
+    db_url = db_url.replace("postgres://", "postgresql://")
 
-app.config['SQLALCHEMY_DATABASE_URI'] = db_url or 'sqlite:///data.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = db_url or 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
