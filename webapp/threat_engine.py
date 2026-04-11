@@ -6,6 +6,7 @@ import ssl
 import socket
 import math
 import joblib
+import base64
 from urllib.parse import urlparse
 
 API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
@@ -79,34 +80,38 @@ def get_ssl_info(url):
 # ---------------- VIRUSTOTAL ----------------
 def check_virustotal(url):
     if not API_KEY:
+        print("❌ No API key found")
         return 0
 
+    headers = {"x-apikey": API_KEY}
+
     try:
-        headers = {"x-apikey": API_KEY}
+        # 🔥 Encode URL (IMPORTANT)
+        url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
 
-        r = requests.post(
-            "https://www.virustotal.com/api/v3/urls",
-            headers=headers,
-            data={"url": url}
-        )
-
-        if r.status_code != 200:
-            return 0
-
-        analysis_id = r.json()["data"]["id"]
-
-        time.sleep(2)
-
-        result = requests.get(
-            f"https://www.virustotal.com/api/v3/analyses/{analysis_id}",
+        # 🔥 Get existing report (NO submit needed)
+        response = requests.get(
+            f"https://www.virustotal.com/api/v3/urls/{url_id}",
             headers=headers
         )
 
-        stats = result.json()["data"]["attributes"]["stats"]
+        if response.status_code != 200:
+            print("VT fetch failed:", response.text)
+            return 0
 
-        return stats.get("malicious", 0) + stats.get("suspicious", 0)
+        data = response.json()
 
-    except:
+        stats = data["data"]["attributes"]["last_analysis_stats"]
+
+        malicious = stats.get("malicious", 0)
+        suspicious = stats.get("suspicious", 0)
+
+        print("VT result:", malicious, suspicious)
+
+        return malicious * 10 + suspicious * 5
+
+    except Exception as e:
+        print("VT error:", e)
         return 0
 
 # ---------------- HELPERS ----------------
@@ -205,6 +210,10 @@ def analyze_url(url):
         # ---------------- HARD RULE ----------------
         if "login" in url.lower() and subdomains > 3:
             risk = max(risk, 70)
+            threats.append("Suspicious Login Pattern")
+
+        vt_score = check_virustotal(url)
+        risk += vt_score
 
         # ---------------- FINAL ----------------
         if risk >= 55:
@@ -228,3 +237,13 @@ def analyze_url(url):
 
     except Exception as e:
         return "Error", 0, [str(e)], {}
+    
+    # ------------------ TEST BLOCK ------------------
+
+if __name__ == "__main__":
+    test_url = "http://www.courgeon-immobilier.fr/wp-content/uploads/2019/07/tpg/9ac6ba30463d0fb7974c06843717284c/"
+
+    print("Testing VirusTotal...")
+    result = check_virustotal(test_url)
+
+    print("VT Score:", result)
